@@ -87,7 +87,7 @@ if "page" not in st.session_state:
                                                                                                                                                             st.session_state.current_user = username
                                                                                                                                                             st.session_state.user_role = user_row.iloc[0]["Role"]
                                                                                                                                                             st.session_state.page = "home"
-                                                                                                                                                                                                                                else:
+                                                                                                                                                            else:
                                                                                                                                                                                                                                             st.error("اسم المستخدم أو كلمة المرور غير صحيحة.")
 
                                                                                                                                                                                                                                             # --- الصفحة الرئيسية ---

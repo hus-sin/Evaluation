@@ -42,7 +42,7 @@ if "page" not in st.session_state:
                                                     "Role": "رئيسي",
                                                             "Active": 1
                         }])
-                            df_users.to_csv(USERS_FILE, index=False)
+                            df_users.to_csv(USERS_FILE, index=True)
 
                             # --- دوال مساعدة ---
                             def load_users():

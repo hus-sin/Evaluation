@@ -72,7 +72,7 @@ if "page" not in st.session_state:
                                                             df.to_csv(CSV_FILE, index=False)
 
                                                                                     # --- صفحة تسجيل الدخول ---
-                                                                                if st.session_state.page == "login":
+                                                            if st.session_state.page == "login":
                                                                                         st.markdown("<h2 style='text-align:center;'>تسجيل الدخول</h2>", unsafe_allow_html=True)
                                                                                             username = st.text_input("اسم المستخدم")
                                                                                                 password = st.text_input("كلمة المرور", type="password")

@@ -56,7 +56,7 @@ if "page" not in st.session_state:
 
                                         def save_report():
                                             end_time = datetime.now()
-                                                report = {
+                                            report = {
                                                             "User": st.session_state.current_user,
                                                                     "Date": st.session_state.start_time.strftime("%Y-%m-%d"),
                                                                             "Start Time": st.session_state.start_time.strftime("%H:%M"),

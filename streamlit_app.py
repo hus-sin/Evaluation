@@ -66,7 +66,7 @@ if "page" not in st.session_state:
                                                 }
                                             if os.path.exists(CSV_FILE):
                                                             df = pd.read_csv(CSV_FILE)
-                                                df = df.append(report,ignore_index=True)                                                                        else:
+                                                df = df.append(report,ignore_index=True)else:
                                                                                 df = pd.DataFrame([report])
                                                                                     df.to_csv(CSV_FILE, index=False)
 

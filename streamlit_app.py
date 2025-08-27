@@ -84,7 +84,7 @@ if "page" not in st.session_state:
                                                                                                                                             if user_row.iloc[0]["Active"] == 0:
                                                                                                                                                             st.error("الحساب معطل، يرجى التواصل مع المستخدم الرئيسي لتفعيله.")
 
-                                                                                                                                                                                        st.session_state.current_user = username
+                                                                                                                                                            st.session_state.current_user = username
                                                                                                                                                                                                         st.session_state.user_role = user_row.iloc[0]["Role"]
                                                                                                                                                                                                                         st.session_state.page = "home"
                                                                                                                                                                                                                                 else:

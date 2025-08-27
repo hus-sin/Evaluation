@@ -68,7 +68,7 @@ if "page" not in st.session_state:
                                                             df = pd.read_csv(CSV_FILE)
                                                             df = df.append(report, ignore_index=True)
 
-                                                                                df = pd.DataFrame([report])
+                                                            df = pd.DataFrame([report])
                                                                                     df.to_csv(CSV_FILE, index=False)
 
                                                                                     # --- صفحة تسجيل الدخول ---

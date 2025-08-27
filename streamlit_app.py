@@ -79,7 +79,7 @@ if "page" not in st.session_state:
                                                                                                     
                                                                                         if st.button("تسجيل الدخول"):
                                                                                                                 df_users = load_users()
-                                                                                                                        user_row = df_users[(df_users["Username"]==username) & (df_users["Password"]==password)]
+                                                                                                                user_row = df_users[(df_users["Username"]==username) & (df_users["Password"]==password)]
                                                                                                                                 if not user_row.empty:
                                                                                                                                             if user_row.iloc[0]["Active"] == 0:
                                                                                                                                                             st.error("الحساب معطل، يرجى التواصل مع المستخدم الرئيسي لتفعيله.")

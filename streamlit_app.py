@@ -69,7 +69,7 @@ if "page" not in st.session_state:
                                                             df = df.append(report, ignore_index=True)
 
                                                             df = pd.DataFrame([report])
-                                                                                    df.to_csv(CSV_FILE, index=False)
+                                                            df.to_csv(CSV_FILE, index=False)
 
                                                                                     # --- صفحة تسجيل الدخول ---
                                                                                     if st.session_state.page == "login":

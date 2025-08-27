@@ -74,7 +74,7 @@ if "page" not in st.session_state:
                                                                                     # --- صفحة تسجيل الدخول ---
                                                             if st.session_state.page == "login":
                                                                                         st.markdown("<h2 style='text-align:center;'>تسجيل الدخول</h2>", unsafe_allow_html=True)
-                                                                                            username = st.text_input("اسم المستخدم")
+                                                                                        username = st.text_input("اسم المستخدم")
                                                                                                 password = st.text_input("كلمة المرور", type="password")
                                                                                                     
                                                                                                         if st.button("تسجيل الدخول"):

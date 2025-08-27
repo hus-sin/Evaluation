@@ -77,7 +77,7 @@ if "page" not in st.session_state:
                                                                                         username = st.text_input("اسم المستخدم")
                                                                                         password = st.text_input("كلمة المرور", type="password")
                                                                                                     
-                                                                                                        if st.button("تسجيل الدخول"):
+                                                                                        if st.button("تسجيل الدخول"):
                                                                                                                 df_users = load_users()
                                                                                                                         user_row = df_users[(df_users["Username"]==username) & (df_users["Password"]==password)]
                                                                                                                                 if not user_row.empty:

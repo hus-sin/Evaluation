@@ -64,7 +64,7 @@ if "page" not in st.session_state:
                                                                                             "Errors": ", ".join(st.session_state.errors_selected),
                                                                                                     "Notes": st.session_state.notes
                                                 }
-                                                    if os.path.exists(CSV_FILE):
+                                                if os.path.exists(CSV_FILE):
                                                             df = pd.read_csv(CSV_FILE)
                                                                     df = df.append(report, ignore_index=True)
                                                                         else:

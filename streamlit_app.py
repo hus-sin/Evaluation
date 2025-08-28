@@ -1,67 +1,175 @@
-# app.py
 import streamlit as st
 import pandas as pd
-import os
-import hashlib
-import io
+import pytz
 from datetime import datetime
+import os
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
-# timezone: try zoneinfo (Py3.9+), fallback to pytz if needed
-try:
-    from zoneinfo import ZoneInfo
-    TZ = ZoneInfo("Asia/Riyadh")
-except Exception:
-    import pytz
-    TZ = pytz.timezone("Asia/Riyadh")
-
-# PDF library
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    REPORTLAB_AVAILABLE = True
-except Exception:
-    REPORTLAB_AVAILABLE = False
-
-# --------- Config ----------
-USERS_FILE = "users.csv"
+# -------- الإعدادات -------- #
+TIMEZONE = pytz.timezone("Asia/Riyadh")
 REPORTS_FILE = "reports.csv"
-PASSWORD_SALT = "veh_eval_salt_2025"  # salt for hashing (simple)
+USERS_FILE = "users.csv"
 
-# Errors list (fixed order you gave)
-ERRORS = [
-    "باب السائق","حزام","افضلية","سرعة","ضعف مراقبة",
-    "عدم التقيد بالمسارات","سرعة اثناء الانعطاف","إشارة للموازي","موقف موازي",
-    "صدم بالموازي","مراقبة اثناء الخروج","استخدام كلتا القدمين","ضعف تحكم بالمقود",
-    "صدم ثمانية","إشارة ٩٠ خلفي","موقف ٩٠ خلفي","صدم ٩٠ خلفي","عكس سير",
-    "فلشر للرجوع","الرجوع للخلف","مراقبة اثناء الرجوع","تسارع عالي","تباطؤ",
-    "فرامل","علامةقف","صدم رصيف","خطوط المشاة","تجاوز اشارة","موقف نهائي","صدم نهائي"
+ERRORS_LIST = [
+    "باب السائق", "حزام", "افضلية", "سرعة", "ضعف مراقبة",
+    "عدم التقيد بالمسارات", "سرعة اثناء الانعطاف", "إشارة للموازي",
+    "موقف موازي", "صدم بالموازي", "مراقبة اثناء الخروج",
+    "استخدام كلتا القدمين", "ضعف تحكم بالمقود", "صدم ثمانية",
+    "إشارة ٩٠خلفي", "موقف ٩٠خلفي", "صدم ٩٠خلفي", "عكس سير",
+    "فلشر للرجوع", "الرجوع للخلف", "مراقبة اثناء الرجوع",
+    "تسارع عالي", "تباطؤ", "فرامل", "علامةقف", "صدم رصيف",
+    "خطوط المشاة", "تجاوز اشارة", "موقف نهائي", "صدم نهائي"
 ]
 
-# --------- Helpers ----------
-def hash_pw(password: str) -> str:
-    return hashlib.sha256((password + PASSWORD_SALT).encode("utf-8")).hexdigest()
-
+# -------- إنشاء الملفات إذا ناقصة -------- #
 def ensure_files_exist():
-    if not os.path.exists(USERS_FILE):
-        df = pd.DataFrame(columns=["username","password_hash","role","active"])
-        # initial admin (hus585 / 268450) active
-        df = df.append({
-            "username":"hus585",
-            "password_hash": hash_pw("268450"),
-            "role":"رئيسي",
-            "active": True
-        }, ignore_index=True)
-        df.to_csv(USERS_FILE, index=False)
-
     if not os.path.exists(REPORTS_FILE):
-        df = pd.DataFrame(columns=[
-            "id","user","report_name","start_time","end_time","errors","notes"
-        ])
-        df.to_csv(REPORTS_FILE, index=False)
+        df = pd.DataFrame(columns=["اسم التقرير", "وقت البداية", "وقت النهاية", "الأخطاء", "ملاحظات"])
+        df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
+    if not os.path.exists(USERS_FILE):
+        df = pd.DataFrame([{"username": "hus585", "password": "268450", "role": "admin"}])
+        df.to_csv(USERS_FILE, index=False, encoding="utf-8-sig")
 
-def load_users():
-    return pd.read_csv(USERS_FILE)
+# -------- حفظ تقرير -------- #
+def save_report(report_name, start_time, end_time, errors, notes):
+    df = pd.read_csv(REPORTS_FILE, encoding="utf-8-sig")
+    new_row = pd.DataFrame([{
+        "اسم التقرير": report_name,
+        "وقت البداية": start_time,
+        "وقت النهاية": end_time,
+        "الأخطاء": "; ".join(errors),
+        "ملاحظات": notes
+    }])
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
 
+# -------- تنزيل PDF -------- #
+def generate_pdf(report):
+    filename = f"{report['اسم التقرير']}.pdf"
+    doc = SimpleDocTemplate(filename)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph(f"تقرير التقييم: {report['اسم التقرير']}", styles["Title"]))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(f"وقت البداية: {report['وقت البداية']}", styles["Normal"]))
+    story.append(Paragraph(f"وقت النهاية: {report['وقت النهاية']}", styles["Normal"]))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(f"الأخطاء:", styles["Heading2"]))
+    story.append(Paragraph(report['الأخطاء'], styles["Normal"]))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph(f"ملاحظات:", styles["Heading2"]))
+    story.append(Paragraph(report['ملاحظات'], styles["Normal"]))
+
+    doc.build(story)
+    return filename
+
+# -------- واجهة تسجيل الدخول -------- #
+def login_page():
+    st.title("تسجيل الدخول")
+    username = st.text_input("اسم المستخدم")
+    password = st.text_input("كلمة المرور", type="password")
+    if st.button("تسجيل الدخول"):
+        users = pd.read_csv(USERS_FILE, encoding="utf-8-sig")
+        user = users[(users["username"] == username) & (users["password"] == password)]
+        if not user.empty:
+            st.session_state.logged_in = True
+            st.session_state.page = "home"
+            st.rerun()
+        else:
+            st.error("اسم المستخدم أو كلمة المرور غير صحيحة")
+
+# -------- الصفحة الرئيسية -------- #
+def home_page():
+    st.title("📊 تقييم")
+    now = datetime.now(TIMEZONE)
+    st.write(f"📅 التاريخ: {now.strftime('%Y-%m-%d')}")
+    st.write(f"⏰ الوقت: {now.strftime('%H:%M:%S')}")
+
+    report_name = st.text_input("📝 اسم التقرير", key="report_name")
+    if st.button("ابدأ التقييم"):
+        if report_name.strip() == "":
+            st.error("أدخل اسم التقرير أولاً")
+        else:
+            st.session_state.report_name = report_name
+            st.session_state.start_time = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.errors = []
+            st.session_state.page = "errors"
+            st.rerun()
+
+    if st.button("📑 السجل"):
+        st.session_state.page = "reports"
+        st.rerun()
+
+# -------- صفحة الأخطاء -------- #
+def errors_page():
+    st.title("🚦 الأخطاء")
+    st.write("اختر الأخطاء التي وقع فيها السائق:")
+
+    cols = st.columns(3)
+    for i, error in enumerate(ERRORS_LIST):
+        if cols[i % 3].button(error):
+            st.session_state.errors.append(error)
+
+    notes = st.text_area("📝 ملاحظات إضافية", key="notes")
+
+    if st.button("إنهاء التقييم"):
+        end_time = datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+        save_report(
+            st.session_state.report_name,
+            st.session_state.start_time,
+            end_time,
+            st.session_state.errors,
+            notes
+        )
+        st.success("✅ تم حفظ التقرير")
+        st.session_state.page = "home"
+        st.rerun()
+
+# -------- صفحة التقارير -------- #
+def reports_page():
+    st.title("📑 السجل")
+    df = pd.read_csv(REPORTS_FILE, encoding="utf-8-sig")
+    st.dataframe(df)
+
+    report_names = df["اسم التقرير"].tolist()
+    if len(report_names) > 0:
+        selected = st.selectbox("اختر تقرير", report_names)
+
+        col1, col2 = st.columns(2)
+        if col1.button("📥 تنزيل PDF"):
+            report = df[df["اسم التقرير"] == selected].iloc[0]
+            filename = generate_pdf(report)
+            with open(filename, "rb") as f:
+                st.download_button("تحميل التقرير", f, file_name=filename)
+
+        if col2.button("🗑️ حذف التقرير"):
+            df = df[df["اسم التقرير"] != selected]
+            df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
+            st.success("تم حذف التقرير")
+            st.rerun()
+
+    if st.button("🏠 رجوع"):
+        st.session_state.page = "home"
+        st.rerun()
+
+# -------- Main -------- #
+ensure_files_exist()
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "page" not in st.session_state:
+    st.session_state.page = "login"
+
+if not st.session_state.logged_in:
+    login_page()
+else:
+    if st.session_state.page == "home":
+        home_page()
+    elif st.session_state.page == "errors":
+        errors_page()
+    elif st.session_state.page == "reports":
+        reports_page()
 def save_users(df):
     df.to_csv(USERS_FILE, index=False)
 

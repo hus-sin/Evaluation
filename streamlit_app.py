@@ -1,67 +1,407 @@
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
-import pytz
-from datetime import datetime
 import os
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
+import io
+from datetime import datetime
+import pytz
 
-# -------- الإعدادات -------- #
-TIMEZONE = pytz.timezone("Asia/Riyadh")
-REPORTS_FILE = "reports.csv"
+# PDF
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    REPORTLAB = True
+except Exception:
+    REPORTLAB = False
+
+# -------- CONFIG ----------
+TZ = pytz.timezone("Asia/Riyadh")
 USERS_FILE = "users.csv"
+REPORTS_FILE = "reports.csv"
 
-ERRORS_LIST = [
-    "باب السائق", "حزام", "افضلية", "سرعة", "ضعف مراقبة",
-    "عدم التقيد بالمسارات", "سرعة اثناء الانعطاف", "إشارة للموازي",
-    "موقف موازي", "صدم بالموازي", "مراقبة اثناء الخروج",
-    "استخدام كلتا القدمين", "ضعف تحكم بالمقود", "صدم ثمانية",
-    "إشارة ٩٠خلفي", "موقف ٩٠خلفي", "صدم ٩٠خلفي", "عكس سير",
-    "فلشر للرجوع", "الرجوع للخلف", "مراقبة اثناء الرجوع",
-    "تسارع عالي", "تباطؤ", "فرامل", "علامةقف", "صدم رصيف",
-    "خطوط المشاة", "تجاوز اشارة", "موقف نهائي", "صدم نهائي"
+ERRORS = [
+    "باب السائق","حزام","افضلية","سرعة","ضعف مراقبة",
+    "عدم التقيد بالمسارات","سرعة اثناء الانعطاف","إشارة للموازي","موقف موازي",
+    "صدم بالموازي","مراقبة اثناء الخروج","استخدام كلتا القدمين","ضعف تحكم بالمقود",
+    "صدم ثمانية","إشارة ٩٠ خلفي","موقف ٩٠ خلفي","صدم ٩٠ خلفي","عكس سير",
+    "فلشر للرجوع","الرجوع للخلف","مراقبة اثناء الرجوع","تسارع عالي","تباطؤ",
+    "فرامل","علامةقف","صدم رصيف","خطوط المشاة","تجاوز اشارة","موقف نهائي","صدم نهائي"
 ]
 
-# -------- إنشاء الملفات إذا ناقصة -------- #
-def ensure_files_exist():
-    if not os.path.exists(REPORTS_FILE):
-        df = pd.DataFrame(columns=["اسم التقرير", "وقت البداية", "وقت النهاية", "الأخطاء", "ملاحظات"])
-        df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
-    if not os.path.exists(USERS_FILE):
-        df = pd.DataFrame([{"username": "hus585", "password": "268450", "role": "admin"}])
-        df.to_csv(USERS_FILE, index=False, encoding="utf-8-sig")
+# -------- Helpers ----------
+def now_riyadh():
+    return datetime.now(TZ)
 
-# -------- حفظ تقرير -------- #
-def save_report(report_name, start_time, end_time, errors, notes):
-    df = pd.read_csv(REPORTS_FILE, encoding="utf-8-sig")
-    new_row = pd.DataFrame([{
-        "اسم التقرير": report_name,
-        "وقت البداية": start_time,
-        "وقت النهاية": end_time,
-        "الأخطاء": "; ".join(errors),
-        "ملاحظات": notes
-    }])
-    df = pd.concat([df, new_row], ignore_index=True)
+def fmt(dt):
+    if isinstance(dt, str):
+        try:
+            d = datetime.fromisoformat(dt)
+            return d.astimezone(TZ).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return dt
+    if isinstance(dt, datetime):
+        return dt.astimezone(TZ).strftime("%Y-%m-%d %H:%M")
+    return str(dt)
+
+def ensure_files():
+    # create users file if missing (with active admin)
+    if not os.path.exists(USERS_FILE):
+        df = pd.DataFrame([{
+            "username": "hus585",
+            "password": "268450",
+            "role": "رئيسي",
+            "active": True
+        }])
+        df.to_csv(USERS_FILE, index=False, encoding="utf-8-sig")
+    # create reports file if missing
+    if not os.path.exists(REPORTS_FILE):
+        df = pd.DataFrame(columns=["id","user","report_name","start_time","end_time","errors","notes"])
+        df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
+
+def load_users():
+    try:
+        return pd.read_csv(USERS_FILE, encoding="utf-8-sig")
+    except Exception:
+        return pd.DataFrame(columns=["username","password","role","active"])
+
+def save_users(df):
+    df.to_csv(USERS_FILE, index=False, encoding="utf-8-sig")
+
+def load_reports():
+    try:
+        return pd.read_csv(REPORTS_FILE, encoding="utf-8-sig")
+    except Exception:
+        return pd.DataFrame(columns=["id","user","report_name","start_time","end_time","errors","notes"])
+
+def save_reports(df):
     df.to_csv(REPORTS_FILE, index=False, encoding="utf-8-sig")
 
-# -------- تنزيل PDF -------- #
-def generate_pdf(report):
-    filename = f"{report['اسم التقرير']}.pdf"
-    doc = SimpleDocTemplate(filename)
-    styles = getSampleStyleSheet()
-    story = []
+def generate_pdf_bytes(report_row):
+    """Return PDF as bytes for a report_row (pandas Series). Requires reportlab."""
+    if not REPORTLAB:
+        raise RuntimeError("reportlab غير مثبت. أضف reportlab إلى requirements.")
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    x = 50
+    y = height - 60
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(x, y, "تقرير تقييم")
+    y -= 30
+    c.setFont("Helvetica", 12)
+    c.drawString(x, y, f"اسم التقرير: {report_row.get('report_name','')}")
+    y -= 20
+    c.drawString(x, y, f"المستخدم: {report_row.get('user','')}")
+    y -= 20
+    c.drawString(x, y, f"وقت البداية: {fmt(report_row.get('start_time',''))}")
+    y -= 20
+    c.drawString(x, y, f"وقت النهاية: {fmt(report_row.get('end_time',''))}")
+    y -= 30
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(x, y, "الأخطاء:")
+    y -= 20
+    c.setFont("Helvetica", 12)
+    errs = str(report_row.get("errors",""))
+    for line in errs.split(";"):
+        if line.strip():
+            c.drawString(x+10, y, "- " + line.strip())
+            y -= 16
+            if y < 80:
+                c.showPage()
+                y = height - 60
+                c.setFont("Helvetica", 12)
+    y -= 10
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(x, y, "الملاحظات:")
+    y -= 20
+    c.setFont("Helvetica", 11)
+    notes = str(report_row.get("notes",""))
+    # wrap notes approx
+    max_chars = 90
+    for i in range(0, len(notes), max_chars):
+        c.drawString(x+5, y, notes[i:i+max_chars])
+        y -= 14
+        if y < 80:
+            c.showPage()
+            y = height - 60
+            c.setFont("Helvetica", 11)
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer.read()
 
-    story.append(Paragraph(f"تقرير التقييم: {report['اسم التقرير']}", styles["Title"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(f"وقت البداية: {report['وقت البداية']}", styles["Normal"]))
-    story.append(Paragraph(f"وقت النهاية: {report['وقت النهاية']}", styles["Normal"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(f"الأخطاء:", styles["Heading2"]))
-    story.append(Paragraph(report['الأخطاء'], styles["Normal"]))
-    story.append(Spacer(1, 12))
-    story.append(Paragraph(f"ملاحظات:", styles["Heading2"]))
-    story.append(Paragraph(report['ملاحظات'], styles["Normal"]))
+# -------- UI pages ----------
+def page_login():
+    st.header("تسجيل الدخول")
+    u = st.text_input("اسم المستخدم", key="login_user")
+    p = st.text_input("كلمة المرور", type="password", key="login_pass")
+    if st.button("دخول"):
+        users = load_users()
+        row = users[(users["username"]==u) & (users["password"]==p)]
+        if row.empty:
+            st.error("اسم المستخدم أو كلمة المرور خاطئ.")
+            return
+        if not bool(row.iloc[0].get("active", False)):
+            st.error("الحساب معطّل. تواصل مع المستخدم الرئيسي لتفعيله.")
+            return
+        st.session_state.username = u
+        st.session_state.role = row.iloc[0].get("role","")
+        st.session_state.page = "home"
+        st.experimental_rerun()
+    st.markdown("---")
+    if st.button("تسجيل حساب جديد"):
+        st.session_state.page = "register"
+        st.experimental_rerun()
 
+def page_register():
+    st.header("تسجيل حساب جديد")
+    newu = st.text_input("اسم المستخدم الجديد", key="reg_user")
+    newp = st.text_input("كلمة المرور", key="reg_pass", type="password")
+    role = st.selectbox("نوع الحساب", ["مقيم","مشاهد فقط"])
+    st.write("ملاحظة: الحساب سيُنشأ **معطّلًا** ويتطلب تفعيلًا من المستخدم الرئيسي.")
+    if st.button("إنشاء"):
+        if not newu or not newp:
+            st.warning("أكمل الحقول")
+        else:
+            users = load_users()
+            if (users["username"]==newu).any():
+                st.error("اسم المستخدم موجود بالفعل.")
+            else:
+                new_row = pd.DataFrame([{
+                    "username": newu,
+                    "password": newp,
+                    "role": role,
+                    "active": False
+                }])
+                users = pd.concat([users, new_row], ignore_index=True)
+                save_users(users)
+                st.success("تم إنشاء الحساب (معطّل). انتظر التفعيل من المسؤول.")
+    if st.button("عودة"):
+        st.session_state.page = "login"
+        st.experimental_rerun()
+
+def page_home():
+    left, center, right = st.columns([1,2,1])
+    with left:
+        dt = now_riyadh()
+        st.markdown(f"<div style='font-size:13px'>{dt.strftime('%Y-%m-%d')}<br>{dt.strftime('%H:%M')}</div>", unsafe_allow_html=True)
+    with center:
+        st.markdown("<h1 style='text-align:center'>تقييم</h1>", unsafe_allow_html=True)
+    with right:
+        if st.session_state.get("username"):
+            st.markdown(f"<div style='text-align:right'>المستخدم: <b>{st.session_state.username}</b><br><span style='font-size:12px'>{st.session_state.get('role','')}</span></div>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # اسم التقرير
+    st.session_state.report_name = st.text_input("اسم التقرير (مثال: اسم السائق/رقم السيارة)", value=st.session_state.get("report_name",""), key="report_name_input")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("ابدأ التقييم"):
+            if not st.session_state.report_name or not st.session_state.report_name.strip():
+                st.warning("أدخل اسم التقرير أولاً.")
+            else:
+                # set start time and reset checkboxes
+                st.session_state.start_time = now_riyadh().isoformat()
+                for i in range(len(ERRORS)):
+                    st.session_state[f"err_{i}"] = False
+                st.session_state.notes = ""
+                st.session_state.page = "evaluation"
+                st.experimental_rerun()
+    with c2:
+        if st.button("عرض السجل"):
+            st.session_state.page = "history"
+            st.experimental_rerun()
+    with c3:
+        if st.session_state.get("username"):
+            if st.button("تسجيل خروج"):
+                st.session_state.username = None
+                st.session_state.role = None
+                st.session_state.page = "login"
+                st.experimental_rerun()
+        else:
+            if st.button("دخول"):
+                st.session_state.page = "login"
+                st.experimental_rerun()
+    st.markdown("<div style='font-size:10px; text-align:center; color:#666'>تصميم حسين العييري</div>", unsafe_allow_html=True)
+
+def page_evaluation():
+    st.header(f"التقييم: {st.session_state.get('report_name','')}")
+    st.write(f"وقت البداية: {fmt(st.session_state.get('start_time',''))}   (توقيت السعودية)")
+    # grid 3 columns, buttons replaced by checkboxes for single-click selection and persistence
+    cols = st.columns(3)
+    for i, err in enumerate(ERRORS):
+        col = cols[i % 3]
+        key = f"err_{i}"
+        current = st.session_state.get(key, False)
+        val = col.checkbox(err, key=key, value=current)
+        # using checkbox so single click toggles and persists
+
+    st.session_state.notes = st.text_area("الملاحظات", value=st.session_state.get("notes",""), height=120)
+    c1, c2 = st.columns([1,1])
+    with c1:
+        if st.button("إنهاء التقييم"):
+            # collect selected
+            selected = [ERRORS[i] for i in range(len(ERRORS)) if st.session_state.get(f"err_{i}", False)]
+            start_iso = st.session_state.get("start_time")
+            end_iso = now_riyadh().isoformat()
+            # save to CSV
+            reports = load_reports()
+            next_id = int(reports["id"].max())+1 if (not reports.empty) else 1
+            user = st.session_state.get("username","anonymous")
+            new_row = pd.DataFrame([{
+                "id": next_id,
+                "user": user,
+                "report_name": st.session_state.get("report_name",""),
+                "start_time": start_iso,
+                "end_time": end_iso,
+                "errors": "; ".join(selected),
+                "notes": st.session_state.get("notes","")
+            }])
+            reports = pd.concat([reports, new_row], ignore_index=True)
+            save_reports(reports)
+            st.success("تم حفظ التقرير.")
+            # reset
+            st.session_state.report_name = ""
+            st.session_state.start_time = None
+            st.session_state.notes = ""
+            for i in range(len(ERRORS)):
+                st.session_state[f"err_{i}"] = False
+            st.session_state.page = "history"
+            st.experimental_rerun()
+    with c2:
+        if st.button("إلغاء والعودة"):
+            st.session_state.page = "home"
+            st.experimental_rerun()
+
+def page_history():
+    st.header("سجل التقييمات")
+    reports = load_reports()
+    if reports.empty:
+        st.info("لا توجد تقارير محفوظة.")
+        if st.button("رجوع"):
+            st.session_state.page = "home"
+            st.experimental_rerun()
+        return
+
+    # if user role مقيم, show only their reports
+    if st.session_state.get("role") == "مقيم":
+        df_view = reports[reports["user"] == st.session_state.get("username")]
+    else:
+        df_view = reports.copy()
+
+    # show summary
+    df_display = df_view[["id","report_name","user","start_time","end_time"]].copy()
+    df_display["start_time"] = df_display["start_time"].apply(fmt)
+    df_display["end_time"] = df_display["end_time"].apply(fmt)
+    st.dataframe(df_display.reset_index(drop=True))
+
+    ids = df_view["id"].astype(int).tolist()
+    sel = st.selectbox("اختر رقم التقرير لعرض التفاصيل", ids)
+    if sel:
+        row = reports[reports["id"]==sel].iloc[0]
+        st.subheader("تفاصيل التقرير")
+        st.write("اسم التقرير:", row["report_name"])
+        st.write("المستخدم:", row["user"])
+        st.write("وقت البداية:", fmt(row["start_time"]))
+        st.write("وقت النهاية:", fmt(row["end_time"]))
+        st.write("الأخطاء:")
+        if str(row["errors"]).strip():
+            for e in str(row["errors"]).split(";"):
+                if e.strip():
+                    st.write("-", e.strip())
+        else:
+            st.write("- لا توجد أخطاء")
+        st.write("الملاحظات:")
+        st.write(row.get("notes",""))
+        # download PDF
+        if REPORTLAB:
+            try:
+                pdf_bytes = generate_pdf_bytes(row)
+                st.download_button("تحميل التقرير PDF", data=pdf_bytes, file_name=f"report_{sel}.pdf", mime="application/pdf")
+            except Exception as ex:
+                st.error("خطأ في إنشاء PDF: " + str(ex))
+        else:
+            st.info("تحميل PDF غير متاح (تأكد من إضافة reportlab إلى requirements).")
+        # deletion (admin or owner)
+        can_delete = False
+        if st.session_state.get("role") == "رئيسي":
+            can_delete = True
+        if st.session_state.get("username") == row["user"]:
+            can_delete = True
+        if can_delete:
+            if st.button("حذف التقرير"):
+                reports_all = load_reports()
+                reports_all = reports_all[reports_all["id"] != sel]
+                save_reports(reports_all)
+                st.success("تم حذف التقرير.")
+                st.experimental_rerun()
+        else:
+            st.info("لا تملك صلاحية حذف هذا التقرير.")
+    if st.button("رجوع"):
+        st.session_state.page = "home"
+        st.experimental_rerun()
+
+def page_admin():
+    st.header("إدارة المستخدمين")
+    users = load_users()
+    st.dataframe(users.reset_index(drop=True))
+    st.markdown("---")
+    # activate/deactivate
+    user_list = users["username"].tolist()
+    chosen = st.selectbox("اختر مستخدم", user_list)
+    if chosen:
+        idx = users[users["username"]==chosen].index[0]
+        cur = users.at[idx,"active"]
+        st.write(f"الحالة الحالية: {'مفعل' if bool(cur) else 'معطل'}")
+        new_state = st.radio("إختر الحالة:", ("مفعل","معطل"), index=0 if bool(cur) else 1)
+        if st.button("تطبيق الحالة"):
+            users.at[idx,"active"] = True if new_state=="مفعل" else False
+            save_users(users)
+            st.success("تم حفظ التغيير.")
+            st.experimental_rerun()
+        st.markdown("### تغيير الصلاحية")
+        new_role = st.selectbox("اختر صلاحية جديدة", ["رئيسي","مقيم","مشاهد فقط"])
+        if st.button("تغيير الصلاحية"):
+            users.at[idx,"role"] = new_role
+            save_users(users)
+            st.success("تم تغيير الصلاحية.")
+            st.experimental_rerun()
+    if st.button("رجوع"):
+        st.session_state.page = "home"
+        st.experimental_rerun()
+
+# -------- Router / init ----------
+ensure_files()
+if "page" not in st.session_state:
+    st.session_state.page = "login"
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+page = st.session_state.page
+if page == "login":
+    page_login()
+elif page == "register":
+    page_register()
+elif page == "home":
+    page_home()
+elif page == "evaluation":
+    page_evaluation()
+elif page == "history":
+    page_history()
+elif page == "admin":
+    # restrict admin page
+    if st.session_state.get("role") == "رئيسي":
+        page_admin()
+    else:
+        st.error("هذه الصفحة متاحة للمستخدم الرئيسي فقط.")
+        if st.button("رجوع"):
+            st.session_state.page = "home"
+            st.experimental_rerun()
+
+# footer
+st.markdown("<div style='font-size:10px; text-align:center; color:#666; margin-top:12px'>تصميم حسين العييري</div>", unsafe_allow_html=True)
     doc.build(story)
     return filename
 

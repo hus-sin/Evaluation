@@ -34,7 +34,7 @@ def ensure_files_exist():
 
     if not os.path.exists(USERS_FILE):
         df = pd.DataFrame([{"username": "hus585", "password": "268450", "role": "admin"}])
-        df.to_csv(USERS_FILE, index=True)
+        df.to_csv(USERS_FILE, index=False)
 
 # ------------------------------
 # تسجيل الدخول

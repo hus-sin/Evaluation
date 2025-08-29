@@ -322,11 +322,10 @@ def main():
                 st.session_state.errors.pop()
                 st.rerun()
 
-        # The new section for the aligned buttons
+        # Inject CSS to make buttons fill the column
         st.markdown("""
         <style>
-        /* This CSS targets the columns and makes the buttons fill the space */
-        div.st-emotion-cache-1jm98c7 button {
+        div.stButton > button {
             width: 100%;
         }
         </style>
@@ -372,6 +371,7 @@ def main():
             if not df.empty:
                 st.dataframe(df)
                 
+                # Admin can delete reports
                 if st.session_state.role == ROLES["admin"]:
                     report_name_to_delete = st.selectbox("اختر تقرير لحذفه", df["اسم التقرير"].unique())
                     if st.button("🗑️ حذف التقرير"):

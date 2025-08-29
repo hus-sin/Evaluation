@@ -310,29 +310,36 @@ def main():
     elif st.session_state.page == "errors":
         st.title("🚦 الأخطاء")
         st.write("اختر الأخطاء التي وقع فيها السائق:")
-
+        
+        # Display the recorded errors
         if st.session_state.errors:
             st.write("الأخطاء المسجلة:")
             for i, err in enumerate(st.session_state.errors):
                 st.info(f"{i + 1}. {err}")
             
+            # Button to undo the last error
             if st.button("إلغاء آخر خطأ"):
                 st.session_state.errors.pop()
                 st.rerun()
 
-        cols = st.columns(3)
+        # The new section for the aligned buttons
         st.markdown("""
         <style>
-        div.stButton > button:first-child {
+        /* This CSS targets the columns and makes the buttons fill the space */
+        div.st-emotion-cache-1jm98c7 button {
             width: 100%;
         }
-        </style>""", unsafe_allow_html=True)
+        </style>
+        """, unsafe_allow_html=True)
+
+        cols = st.columns(3)
         for i, err in enumerate(ERRORS_LIST):
             button_disabled = err in st.session_state.errors
-            if cols[i % 3].button(err, disabled=button_disabled, key=f"err_btn_{i}"):
-                st.session_state.errors.append(err)
-                st.success(f"تم تسجيل: {err}")
-                st.rerun()
+            with cols[i % 3]:
+                if st.button(err, disabled=button_disabled, key=f"err_btn_{i}"):
+                    st.session_state.errors.append(err)
+                    st.success(f"تم تسجيل: {err}")
+                    st.rerun()
         
         st.session_state.notes = st.text_area("ملاحظات إضافية", st.session_state.notes)
         

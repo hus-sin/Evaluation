@@ -44,6 +44,10 @@ def ensure_files_exist():
     if not os.path.exists(REPORTS_FILE):
         df = pd.DataFrame(columns=reports_cols)
         df.to_csv(REPORTS_FILE, index=False)
+    # New code: clear all reports on app start
+    else:
+        df = pd.DataFrame(columns=reports_cols)
+        df.to_csv(REPORTS_FILE, index=False)
         
     # Define columns for the users file, including name and vehicle number
     users_cols = ["username", "password", "role", "evaluator_access", "name", "vehicle_number"]

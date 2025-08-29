@@ -6,15 +6,6 @@ import os
 import pytz
 from datetime import datetime
 import io
-import arabic_reshaper
-from bidi.algorithm import get_display
-
-# For PDF generation
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
 # ------------------------------
 # General Settings
@@ -57,9 +48,7 @@ def login(username, password):
     Authenticates the user based on the provided username and password.
     """
     try:
-        df = pd.read_csv(USERS_FILE, dtype=str)  # تعديل: قراءة الملف مع التأكد من أن جميع الأعمدة كنص
-        
-        # تعديل: التأكد من أن الأعمدة لا تحتوي على مسافات زائدة
+        df = pd.read_csv(USERS_FILE, dtype=str)
         df['username'] = df['username'].str.strip()
         df['password'] = df['password'].str.strip()
         
@@ -93,68 +82,6 @@ def save_report(report_name, start_time, end_time, errors, notes):
         st.error(f"حدث خطأ أثناء حفظ التقرير: {e}")
 
 # ------------------------------
-# Generate PDF
-# ------------------------------
-def generate_pdf(report):
-    """
-    Generates a PDF report with proper Arabic text rendering.
-    Returns the file path of the generated PDF.
-    """
-    # NOTE: You need to have a font file that supports Arabic on the machine
-    # running this code. For example, 'Amiri-Regular.ttf'.
-    # For a simple setup, you can try to find and upload one.
-    
-    # Register an Arabic font (replace 'DejaVuSans-Bold.ttf' with your font file)
-    try:
-        # We will use a font that is likely to be available or can be uploaded
-        # For this example, we'll assume a font file exists.
-        # In a real app, you would need to ensure the font file is present.
-        font_path = "DejaVuSans-Bold.ttf" # You may need to change this path
-        pdfmetrics.registerFont(TTFont('ArabicFont', font_path))
-    except Exception as e:
-        st.error(f"خطأ: لم يتم العثور على ملف الخط 'DejaVuSans-Bold.ttf'. يرجى التأكد من وجوده. {e}")
-        return None
-
-    # Use a BytesIO object instead of a physical file
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-
-    # Define a style for the Arabic text
-    styles['Normal'].fontName = 'ArabicFont'
-    styles['Title'].fontName = 'ArabicFont'
-
-    # Helper function to process Arabic text
-    def process_arabic(text):
-        return get_display(arabic_reshaper.reshape(text))
-
-    story = []
-
-    story.append(Paragraph(process_arabic("تقرير التقييم"), styles['Title']))
-    story.append(Spacer(1, 12))
-    
-    # Process and add all report details
-    report_details = {
-        "اسم التقرير": report['اسم التقرير'],
-        "وقت البداية": report['وقت البداية'],
-        "وقت النهاية": report['وقت النهاية'],
-        "الأخطاء": report['الأخطاء'],
-        "ملاحظات": report['ملاحظات']
-    }
-
-    for key, value in report_details.items():
-        processed_key = process_arabic(key)
-        processed_value = process_arabic(str(value)) # Ensure value is a string
-        story.append(Paragraph(f"{processed_key}: {processed_value}", styles['Normal']))
-        story.append(Spacer(1, 6))
-
-    doc.build(story)
-    
-    # Go to the beginning of the buffer
-    buffer.seek(0)
-    return buffer
-
-# ------------------------------
 # Application Interface
 # ------------------------------
 def main():
@@ -181,12 +108,10 @@ def main():
     # -------------------- Login Page --------------------
     if st.session_state.page == "login":
         st.title("🔐 تسجيل الدخول")
-        # تعديل: استخدام .strip() لإزالة أي مسافات زائدة من الإدخال
         username = st.text_input("اسم المستخدم").strip()
         password = st.text_input("كلمة المرور", type="password").strip()
         
         if st.button("دخول"):
-            # تعديل: تمرير الإدخالات المعدلة للدالة
             role = login(username, password)
             if role:
                 st.session_state.role = role
@@ -271,34 +196,25 @@ def main():
     # -------------------- Reports Page --------------------
     elif st.session_state.page == "reports":
         st.title("📑 السجلات")
-        df = pd.read_csv(REPORTS_FILE)
-        st.dataframe(df)
+        try:
+            df = pd.read_csv(REPORTS_FILE)
+            if not df.empty:
+                st.dataframe(df)
 
-        if not df.empty:
-            report_name = st.selectbox("اختر تقرير", df["اسم التقرير"].unique())
-            
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.button("⬇️ تحميل PDF"):
-                    report = df[df["اسم التقرير"] == report_name].iloc[0]
-                    pdf_buffer = generate_pdf(report)
-                    if pdf_buffer:
-                        st.download_button(
-                            label="تحميل التقرير كملف PDF",
-                            data=pdf_buffer,
-                            file_name=f"{report_name}.pdf",
-                            mime="application/pdf"
-                        )
-                    else:
-                        st.error("تعذر إنشاء ملف PDF. يرجى مراجعة رسالة الخطأ أعلاه.")
-
-            with col2:
+                report_name = st.selectbox("اختر تقرير", df["اسم التقرير"].unique())
+                
+                # Removed the PDF download button
                 if st.button("🗑️ حذف التقرير"):
                     df = df[df["اسم التقرير"] != report_name]
                     df.to_csv(REPORTS_FILE, index=False)
                     st.success("تم حذف التقرير")
                     st.experimental_rerun()
+            else:
+                st.info("لا توجد تقارير حالياً.")
+        except pd.errors.EmptyDataError:
+            st.info("ملف التقارير فارغ. ابدأ بإضافة تقرير جديد.")
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء قراءة ملف التقارير: {e}")
 
         if st.button("🔙 رجوع"):
             st.session_state.page = "home"

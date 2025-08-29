@@ -1,3 +1,3 @@
-username,password,role,evaluator_access
-hus585,268450,admin,True
-qwe,123123,viewer,False
+username,password,role,evaluator_access,name,vehicle_number
+hus585,268450,admin,True,المستخدم الرئيسي,12345
+qwe,123123,viewer,False,المشاهد,98765

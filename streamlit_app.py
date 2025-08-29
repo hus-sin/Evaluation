@@ -3,9 +3,8 @@
 import streamlit as st
 import pandas as pd
 import os
-import pytz
 from datetime import datetime
-import io
+import pytz
 
 # ------------------------------
 # General Settings
@@ -48,7 +47,9 @@ def login(username, password):
     Authenticates the user based on the provided username and password.
     """
     try:
+        # Read the users file and ensure all columns are treated as strings
         df = pd.read_csv(USERS_FILE, dtype=str)
+        # Remove any leading/trailing whitespace
         df['username'] = df['username'].str.strip()
         df['password'] = df['password'].str.strip()
         
@@ -104,7 +105,6 @@ def main():
     if "notes" not in st.session_state:
         st.session_state.notes = ""
 
-
     # -------------------- Login Page --------------------
     if st.session_state.page == "login":
         st.title("🔐 تسجيل الدخول")
@@ -132,7 +132,7 @@ def main():
         st.session_state.report_name = st.text_input("اسم التقرير", st.session_state.report_name)
 
         if st.button("ابدأ التقييم"):
-            if st.session_state.report_name.strip() == "":
+            if not st.session_state.report_name.strip():
                 st.error("أدخل اسم التقرير أولاً")
             else:
                 st.session_state.start_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
@@ -145,7 +145,6 @@ def main():
             st.session_state.page = "reports"
             st.experimental_rerun()
 
-        # Added a logout button for convenience
         st.markdown("---")
         if st.button("🚪 خروج"):
             st.session_state.page = "login"
@@ -157,28 +156,23 @@ def main():
         st.title("🚦 الأخطاء")
         st.write("اختر الأخطاء التي وقع فيها السائق:")
 
-        # Display selected errors
         if st.session_state.errors:
             st.write("الأخطاء المسجلة:")
             for i, err in enumerate(st.session_state.errors):
                 st.info(f"{i + 1}. {err}")
             
-            # Button to remove the last added error
             if st.button("إلغاء آخر خطأ"):
                 st.session_state.errors.pop()
                 st.experimental_rerun()
 
-        # Use 2 columns for better responsiveness
         cols = st.columns(2)
         for i, err in enumerate(ERRORS_LIST):
-            # Check if the error is already selected to disable the button
             button_disabled = err in st.session_state.errors
             if cols[i % 2].button(err, disabled=button_disabled):
                 st.session_state.errors.append(err)
                 st.success(f"تم تسجيل: {err}")
                 st.experimental_rerun()
         
-        # Keep the notes in session state to persist it
         st.session_state.notes = st.text_area("ملاحظات إضافية", st.session_state.notes)
         
         st.markdown("---")
@@ -203,7 +197,6 @@ def main():
 
                 report_name = st.selectbox("اختر تقرير", df["اسم التقرير"].unique())
                 
-                # Removed the PDF download button
                 if st.button("🗑️ حذف التقرير"):
                     df = df[df["اسم التقرير"] != report_name]
                     df.to_csv(REPORTS_FILE, index=False)
@@ -219,7 +212,6 @@ def main():
         if st.button("🔙 رجوع"):
             st.session_state.page = "home"
             st.experimental_rerun()
-
 
 # ------------------------------
 # Run the application

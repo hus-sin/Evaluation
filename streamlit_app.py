@@ -39,13 +39,13 @@ def ensure_files_exist():
     Creates the necessary CSV files if they don't exist.
     Initializes a new admin and viewer user if the users file is missing.
     """
-    # Define columns for the reports file
-    reports_cols = ["اسم التقرير", "وقت البداية", "وقت النهاية", "الأخطاء", "ملاحظات", "اسم المستخدم", "اسم المقيم", "رقم المركبة"]
+    # Define columns for the reports file, now without "اسم المقيم"
+    reports_cols = ["اسم التقرير", "وقت البداية", "وقت النهاية", "الأخطاء", "ملاحظات", "اسم المستخدم", "رقم المركبة"]
     if not os.path.exists(REPORTS_FILE):
         df = pd.DataFrame(columns=reports_cols)
         df.to_csv(REPORTS_FILE, index=False)
         
-    # Define columns for the users file, now including name and vehicle number
+    # Define columns for the users file, including name and vehicle number
     users_cols = ["username", "password", "role", "evaluator_access", "name", "vehicle_number"]
     if not os.path.exists(USERS_FILE):
         initial_users = [
@@ -110,8 +110,8 @@ def update_user_permissions(username, new_role, new_access):
     except Exception as e:
         return False, f"حدث خطأ أثناء حفظ التعديلات: {e}"
 
-def save_report(report_name, start_time, end_time, errors, notes, username, evaluator_name, vehicle_number):
-    """Saves a new report to the CSV file, including the user's name, evaluator name, and vehicle number."""
+def save_report(report_name, start_time, end_time, errors, notes, username, vehicle_number):
+    """Saves a new report to the CSV file, including the user's name and vehicle number."""
     try:
         df = pd.read_csv(REPORTS_FILE)
         new_row = pd.DataFrame([{
@@ -121,7 +121,6 @@ def save_report(report_name, start_time, end_time, errors, notes, username, eval
             "الأخطاء": "; ".join(errors),
             "ملاحظات": notes,
             "اسم المستخدم": username,
-            "اسم المقيم": evaluator_name,
             "رقم المركبة": vehicle_number
         }])
         df = pd.concat([df, new_row], ignore_index=True)
@@ -342,7 +341,7 @@ def main():
         with col1:
             if st.button("إنهاء التقييم"):
                 end_time = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
-                save_report(st.session_state.report_name, st.session_state.start_time, end_time, st.session_state.errors, st.session_state.notes, st.session_state.username, st.session_state.evaluator_name, st.session_state.vehicle_number)
+                save_report(st.session_state.report_name, st.session_state.start_time, end_time, st.session_state.errors, st.session_state.notes, st.session_state.username, st.session_state.vehicle_number)
                 st.success("✅ تم حفظ التقرير")
                 st.session_state.page = "home"
                 st.rerun()
@@ -374,6 +373,7 @@ def main():
                         st.rerun()
                 else:
                     st.warning("ليس لديك صلاحية لحذف التقارير.")
+
             else:
                 st.info("لا توجد تقارير متاحة.")
         except pd.errors.EmptyDataError:

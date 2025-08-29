@@ -20,7 +20,7 @@ ROLES = {
     "viewer": "viewer"
 }
 
-# List of errors for the evaluation page
+# List of errors for the evaluation page, updated with new buttons
 ERRORS_LIST = [
     "باب السائق", "حزام", "افضلية", "سرعة", "ضعف مراقبة",
     "عدم التقيد بالمسارات", "سرعة اثناء الانعطاف", "إشارة للموازي",
@@ -28,7 +28,8 @@ ERRORS_LIST = [
     "ضعف تحكم بالمقود", "صدم ثمانية", "إشارة ٩٠خلفي", "موقف ٩٠خلفي",
     "صدم ٩٠خلفي", "عكس سير", "فلشر للرجوع", "الرجوع للخلف",
     "مراقبة اثناء الرجوع", "تسارع عالي", "تباطؤ", "فرامل", "علامةقف",
-    "صدم رصيف", "خطوط المشاة", "تجاوز اشارة", "موقف نهائي", "صدم نهائي"
+    "صدم رصيف", "خطوط المشاة", "تجاوز اشارة", "موقف نهائي", "صدم نهائي",
+    "التموضع بالموازي", "تموضع ٩٠خلفي"
 ]
 
 # ------------------------------
@@ -39,13 +40,9 @@ def ensure_files_exist():
     Creates the necessary CSV files if they don't exist.
     Initializes a new admin and viewer user if the users file is missing.
     """
-    # Define columns for the reports file, now without "اسم المقيم"
+    # Define columns for the reports file
     reports_cols = ["اسم التقرير", "وقت البداية", "وقت النهاية", "الأخطاء", "ملاحظات", "اسم المستخدم", "رقم المركبة"]
     if not os.path.exists(REPORTS_FILE):
-        df = pd.DataFrame(columns=reports_cols)
-        df.to_csv(REPORTS_FILE, index=False)
-    # New code: clear all reports on app start
-    else:
         df = pd.DataFrame(columns=reports_cols)
         df.to_csv(REPORTS_FILE, index=False)
         
@@ -109,16 +106,32 @@ def register_user(username, password, name, vehicle_number):
     except Exception as e:
         return False, f"حدث خطأ أثناء التسجيل: {e}"
 
-def update_user_permissions(username, new_role, new_access):
-    """Updates a user's role and evaluator_access in the users.csv file."""
+def update_user_permissions(username, new_role, new_access, new_name, new_password):
+    """
+    Updates a user's details and permissions from the admin panel.
+    """
     try:
         df = pd.read_csv(USERS_FILE, dtype=str)
         df.loc[df['username'] == username, 'role'] = new_role
         df.loc[df['username'] == username, 'evaluator_access'] = str(new_access)
+        df.loc[df['username'] == username, 'name'] = new_name
+        df.loc[df['username'] == username, 'password'] = new_password
         df.to_csv(USERS_FILE, index=False)
         return True, "تم حفظ التعديلات بنجاح."
     except Exception as e:
         return False, f"حدث خطأ أثناء حفظ التعديلات: {e}"
+
+def update_my_account(username, new_password, new_name, new_vehicle_number):
+    """Updates the current user's own account details."""
+    try:
+        df = pd.read_csv(USERS_FILE, dtype=str)
+        df.loc[df['username'] == username, 'password'] = new_password
+        df.loc[df['username'] == username, 'name'] = new_name
+        df.loc[df['username'] == username, 'vehicle_number'] = new_vehicle_number
+        df.to_csv(USERS_FILE, index=False)
+        return True, "تم تحديث معلومات حسابك بنجاح."
+    except Exception as e:
+        return False, f"حدث خطأ أثناء تحديث الحساب: {e}"
 
 def save_report(report_name, start_time, end_time, errors, notes, username, vehicle_number):
     """Saves a new report to the CSV file, including the user's name and vehicle number."""
@@ -221,29 +234,29 @@ def main():
         st.title("👨‍💼 إدارة المستخدمين")
         
         df_users = pd.read_csv(USERS_FILE, dtype=str)
-        st.write("يمكنك تعديل صلاحيات المستخدمين من هنا:")
+        st.write("يمكنك تعديل معلومات وصلاحيات المستخدمين من هنا:")
         
         form_submitted = False
         with st.form("admin_form"):
             for index, row in df_users.iterrows():
                 username = row['username']
-                current_role = row['role']
-                current_access = row['evaluator_access'] == "True"
+                st.markdown(f"### المستخدم: {username}")
                 
-                st.markdown(f"**المستخدم:** {username}")
+                new_name = st.text_input(f"اسم المقيم", value=row['name'], key=f"name_{username}")
+                new_password = st.text_input(f"كلمة المرور", value=row['password'], type="password", key=f"password_{username}")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     new_role = st.selectbox(
                         "الدور",
                         options=list(ROLES.values()),
-                        index=list(ROLES.values()).index(current_role),
+                        index=list(ROLES.values()).index(row['role']),
                         key=f"role_{username}"
                     )
                 with col2:
                     new_access = st.checkbox(
                         "صلاحية التقييم",
-                        value=current_access,
+                        value=(row['evaluator_access'] == "True"),
                         key=f"access_{username}"
                     )
                 st.markdown("---")
@@ -254,17 +267,42 @@ def main():
         if form_submitted:
             for index, row in df_users.iterrows():
                 username = row['username']
+                new_name = st.session_state[f"name_{username}"]
+                new_password = st.session_state[f"password_{username}"]
                 new_role = st.session_state[f"role_{username}"]
                 new_access = st.session_state[f"access_{username}"]
                 
-                if new_role != row['role'] or new_access != (row['evaluator_access'] == "True"):
-                    update_user_permissions(username, new_role, new_access)
-                    st.success(f"تم تحديث صلاحيات المستخدم {username} بنجاح.")
+                update_user_permissions(username, new_role, new_access, new_name, new_password)
+            st.success("تم تحديث جميع الصلاحيات بنجاح.")
             st.rerun()
             
         if st.button("🔙 رجوع إلى الرئيسية"):
             st.session_state.page = "home"
             st.rerun()
+
+    # -------------------- My Account Management Page --------------------
+    elif st.session_state.page == "my_account_management":
+        st.title("⚙️ تعديل معلومات الحساب")
+        st.write(f"المستخدم الحالي: **{st.session_state.username}**")
+        
+        with st.form("my_account_form"):
+            new_password = st.text_input("كلمة المرور الجديدة", type="password", value=st.session_state.password, key="my_new_password")
+            new_name = st.text_input("الاسم الجديد", value=st.session_state.evaluator_name, key="my_new_name")
+            new_vehicle_number = st.text_input("رقم المركبة الجديد", value=st.session_state.vehicle_number, key="my_new_vehicle_number")
+            
+            if st.form_submit_button("حفظ التغييرات"):
+                success, message = update_my_account(st.session_state.username, new_password, new_name, new_vehicle_number)
+                if success:
+                    st.session_state.evaluator_name = new_name
+                    st.session_state.vehicle_number = new_vehicle_number
+                    st.success(message)
+                else:
+                    st.error(message)
+        
+        if st.button("🔙 رجوع إلى الرئيسية"):
+            st.session_state.page = "home"
+            st.rerun()
+
 
     # -------------------- Home Page --------------------
     elif st.session_state.page == "home":
@@ -295,12 +333,16 @@ def main():
 
         st.markdown("---")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("📑 عرض السجلات"):
                 st.session_state.page = "reports"
                 st.rerun()
         with col2:
+            if st.button("⚙️ إعدادات الحساب"):
+                st.session_state.page = "my_account_management"
+                st.rerun()
+        with col3:
             if is_admin:
                 if st.button("👨‍💼 إدارة المستخدمين"):
                     st.session_state.page = "admin_management"

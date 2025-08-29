@@ -64,7 +64,13 @@ def login(username, password):
         df = pd.read_csv(USERS_FILE, dtype=str)
         df['username'] = df['username'].str.strip()
         df['password'] = df['password'].str.strip()
-        user = df[(df["username"] == username) & (df["password"] == password)]
+        
+        # Convert both the input username and the dataframe usernames to lowercase for case-insensitive comparison
+        input_username_lower = username.lower()
+        df['username_lower'] = df['username'].str.lower()
+        
+        user = df[(df["username_lower"] == input_username_lower) & (df["password"] == password)]
+        
         if not user.empty:
             role = user.iloc[0]["role"]
             evaluator_access = user.iloc[0]["evaluator_access"] == "True"

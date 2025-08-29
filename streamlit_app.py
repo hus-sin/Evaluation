@@ -47,9 +47,7 @@ def login(username, password):
     Authenticates the user based on the provided username and password.
     """
     try:
-        # Read the users file and ensure all columns are treated as strings
         df = pd.read_csv(USERS_FILE, dtype=str)
-        # Remove any leading/trailing whitespace
         df['username'] = df['username'].str.strip()
         df['password'] = df['password'].str.strip()
         
@@ -105,6 +103,7 @@ def main():
     if "notes" not in st.session_state:
         st.session_state.notes = ""
 
+
     # -------------------- Login Page --------------------
     if st.session_state.page == "login":
         st.title("🔐 تسجيل الدخول")
@@ -118,7 +117,7 @@ def main():
                 st.session_state.username = username
                 st.session_state.page = "home"
                 st.success("تم تسجيل الدخول بنجاح")
-                st.experimental_rerun()
+                st.rerun() # Replaced st.experimental_rerun()
             else:
                 st.error("اسم المستخدم أو كلمة المرور غير صحيح")
 
@@ -139,17 +138,17 @@ def main():
                 st.session_state.errors = []
                 st.session_state.notes = ""
                 st.session_state.page = "errors"
-                st.experimental_rerun()
+                st.rerun() # Replaced st.experimental_rerun()
 
         if st.button("📑 عرض السجلات"):
             st.session_state.page = "reports"
-            st.experimental_rerun()
+            st.rerun() # Replaced st.experimental_rerun()
 
         st.markdown("---")
         if st.button("🚪 خروج"):
             st.session_state.page = "login"
             st.session_state.role = None
-            st.experimental_rerun()
+            st.rerun() # Replaced st.experimental_rerun()
 
     # -------------------- Errors Page --------------------
     elif st.session_state.page == "errors":
@@ -163,7 +162,7 @@ def main():
             
             if st.button("إلغاء آخر خطأ"):
                 st.session_state.errors.pop()
-                st.experimental_rerun()
+                st.rerun() # Replaced st.experimental_rerun()
 
         cols = st.columns(2)
         for i, err in enumerate(ERRORS_LIST):
@@ -171,7 +170,7 @@ def main():
             if cols[i % 2].button(err, disabled=button_disabled):
                 st.session_state.errors.append(err)
                 st.success(f"تم تسجيل: {err}")
-                st.experimental_rerun()
+                st.rerun() # Replaced st.experimental_rerun()
         
         st.session_state.notes = st.text_area("ملاحظات إضافية", st.session_state.notes)
         
@@ -181,11 +180,11 @@ def main():
             save_report(st.session_state.report_name, st.session_state.start_time, end_time, st.session_state.errors, st.session_state.notes)
             st.success("✅ تم حفظ التقرير")
             st.session_state.page = "home"
-            st.experimental_rerun()
+            st.rerun() # Replaced st.experimental_rerun()
 
         if st.button("إلغاء التقييم"):
             st.session_state.page = "home"
-            st.experimental_rerun()
+            st.rerun() # Replaced st.experimental_rerun()
 
     # -------------------- Reports Page --------------------
     elif st.session_state.page == "reports":
@@ -201,7 +200,7 @@ def main():
                     df = df[df["اسم التقرير"] != report_name]
                     df.to_csv(REPORTS_FILE, index=False)
                     st.success("تم حذف التقرير")
-                    st.experimental_rerun()
+                    st.rerun() # Replaced st.experimental_rerun()
             else:
                 st.info("لا توجد تقارير حالياً.")
         except pd.errors.EmptyDataError:
@@ -211,7 +210,7 @@ def main():
 
         if st.button("🔙 رجوع"):
             st.session_state.page = "home"
-            st.experimental_rerun()
+            st.rerun() # Replaced st.experimental_rerun()
 
 # ------------------------------
 # Run the application

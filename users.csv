@@ -1,2 +1,3 @@
-username,password,role
-hus585,268450,admin
+username,password,role,evaluator_access
+hus585,268450,admin,True
+qwe,123123,viewer,False
